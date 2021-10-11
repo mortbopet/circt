@@ -19,6 +19,7 @@ target_link_libraries(circt-opt
   CIRCTFIRRTLTransforms
   CIRCTFSM
   CIRCTHandshake
+  CIRCTHandshakeToAsync
   CIRCTHandshakeToFIRRTL
   CIRCTLLHD
   CIRCTLLHDToLLVM
@@ -36,6 +37,7 @@ target_link_libraries(circt-opt
   CIRCTSV
   CIRCTSVTransforms
   
+  MLIRAsync
   MLIRIR
   MLIRLLVMIR
   MLIRMemRef

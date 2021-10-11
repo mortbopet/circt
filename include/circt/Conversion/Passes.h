@@ -17,6 +17,7 @@
 #include "circt/Conversion/ExportVerilog.h"
 #include "circt/Conversion/FIRRTLToHW.h"
 #include "circt/Conversion/HWToLLHD.h"
+#include "circt/Conversion/HandshakeToAsync.h"
 #include "circt/Conversion/HandshakeToFIRRTL.h"
 #include "circt/Conversion/LLHDToLLVM.h"
 #include "circt/Conversion/SCFToCalyx.h"

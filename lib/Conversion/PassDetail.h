@@ -13,9 +13,14 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+class StandardOpsDialect;
 namespace scf {
 class SCFDialect;
 } // namespace scf
+
+namespace async {
+class AsyncDialect;
+} // namespace async
 
 namespace LLVM {
 class LLVMDialect;

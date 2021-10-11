@@ -110,6 +110,22 @@ def HandshakeToFIRRTL : Pass<"lower-handshake-to-firrtl", "mlir::ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// HandshakeToAsync
+//===----------------------------------------------------------------------===//
+
+def HandshakeToAsync : Pass<"lower-handshake-to-async", "mlir::ModuleOp"> {
+  let summary = "Lower Handshake to Async";
+  let description = "Lower Handshake to Async.";
+  let constructor = "circt::createHandshakeToAsyncPass()";
+  let dependentDialects = [
+    "mlir::async::AsyncDialect",
+    "mlir::StandardOpsDialect",
+    "mlir::scf::SCFDialect"
+  ];
+}
+
+
+//===----------------------------------------------------------------------===//
 // LLHDToLLVM
 //===----------------------------------------------------------------------===//
 
