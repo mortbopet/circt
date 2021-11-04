@@ -16,6 +16,7 @@
 #include "circt/Dialect/HW/HWAttributes.h"
 #include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/SV/SVOps.h"
+#include "circt/Dialect/Seq/SeqDialect.h"
 #include "circt/Support/BackedgeBuilder.h"
 #include "circt/Support/LLVM.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -1298,6 +1299,7 @@ std::unique_ptr<OperationPass<ModuleOp>> createESIPortLoweringPass() {
 std::unique_ptr<OperationPass<ModuleOp>> createESItoHWPass() {
   return std::make_unique<ESItoHWPass>();
 }
+std::unique_ptr<OperationPass<ModuleOp>> createESIWrapperPass();
 
 } // namespace esi
 } // namespace circt

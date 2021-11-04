@@ -33,4 +33,19 @@ def LowerESItoHW: Pass<"lower-esi-to-hw", "mlir::ModuleOp"> {
   let dependentDialects = ["circt::comb::CombDialect", "circt::hw::HWDialect"];
 }
 
+def CreateESIWrapper: Pass<"create-esi-wrapper", "mlir::ModuleOp"> {
+  let summary = "Creates an ESI wrapper from a supported hardware-like module.";
+  let constructor = "circt::esi::createESIWrapperPass()";
+  let dependentDialects = ["circt::comb::CombDialect", "circt::hw::HWDialect",
+    "circt::seq::SeqDialect", "circt::esi::ESIDialect", "circt::sv::SVDialect"];
+  
+  let options = [
+    Option<"topOpt", "top", "std::string", "", "top-level function to wrap">,
+    Option<"inputBufferSizeOpt", "input-buffer-size", "unsigned",
+      "1", "Size of input buffers">,
+    Option<"outputBufferSizeOpt", "output-buffer-size", "unsigned",
+      "1", "Size of output buffers">
+  ];
+}
+
 #endif // CIRCT_DIALECT_ESI_ESIPASSES_TD
