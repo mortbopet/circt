@@ -52,6 +52,12 @@ struct CreateESIWrapper : public CreateESIWrapperBase<CreateESIWrapper> {
   Operation *inferTopOp(ModuleOp module);
   LogicalResult createWrapper(OpBuilder &builder, calyx::ComponentOp op,
                               SmallVectorImpl<Operation *> &opsToKeep);
+
+  /// Expose options as public to make them accessable from the pass creation
+  /// function.
+  using CreateESIWrapperBase::inputBufferSizeOpt;
+  using CreateESIWrapperBase::outputBufferSizeOpt;
+  using CreateESIWrapperBase::topOpt;
 };
 
 static bool isCalyxInterfacePort(StringRef portName) {
@@ -333,8 +339,18 @@ void CreateESIWrapper::runOnOperation() {
 namespace circt {
 namespace esi {
 
-std::unique_ptr<OperationPass<ModuleOp>> createESIWrapperPass() {
-  return std::make_unique<CreateESIWrapper>();
+std::unique_ptr<OperationPass<ModuleOp>>
+createESIWrapperPass(llvm::Optional<StringRef> topOpt,
+                     llvm::Optional<unsigned> inputBufferSize,
+                     llvm::Optional<unsigned> outputBufferSize) {
+  auto pass = std::make_unique<CreateESIWrapper>();
+  if (topOpt)
+    pass->topOpt = topOpt->str();
+  if (inputBufferSize)
+    pass->inputBufferSizeOpt = inputBufferSize.getValue();
+  if (outputBufferSize)
+    pass->outputBufferSizeOpt = outputBufferSize.getValue();
+  return pass;
 }
 
 } // namespace esi

@@ -1299,7 +1299,10 @@ std::unique_ptr<OperationPass<ModuleOp>> createESIPortLoweringPass() {
 std::unique_ptr<OperationPass<ModuleOp>> createESItoHWPass() {
   return std::make_unique<ESItoHWPass>();
 }
-std::unique_ptr<OperationPass<ModuleOp>> createESIWrapperPass();
+std::unique_ptr<OperationPass<ModuleOp>>
+createESIWrapperPass(llvm::Optional<StringRef> topOpt = {},
+                     llvm::Optional<unsigned> inputBufferSize = {},
+                     llvm::Optional<unsigned> outputBufferSize = {});
 
 } // namespace esi
 } // namespace circt
