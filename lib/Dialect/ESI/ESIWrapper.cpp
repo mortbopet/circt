@@ -49,7 +49,9 @@ namespace {
 /// Run all the physical lowerings.
 struct CreateESIWrapper : public CreateESIWrapperBase<CreateESIWrapper> {
   void runOnOperation() override;
-  LogicalResult createWrapper(OpBuilder &builder, calyx::ComponentOp op);
+  Operation *inferTopOp(ModuleOp module);
+  LogicalResult createWrapper(OpBuilder &builder, calyx::ComponentOp op,
+                              SmallVectorImpl<Operation *> &opsToKeep);
 };
 
 static bool isCalyxInterfacePort(StringRef portName) {
@@ -97,8 +99,9 @@ static bool isGoDonePort(StringAttr portNameAttr) {
   return portName == "go" || portName == "done";
 }
 
-LogicalResult CreateESIWrapper::createWrapper(OpBuilder &builder,
-                                              calyx::ComponentOp op) {
+LogicalResult
+CreateESIWrapper::createWrapper(OpBuilder &builder, calyx::ComponentOp op,
+                                SmallVectorImpl<Operation *> &opsToKeep) {
 
   // Build ports for the ESI-wrapped calyx instance.
   SmallVector<hw::PortInfo, 8> ports;
@@ -128,9 +131,11 @@ LogicalResult CreateESIWrapper::createWrapper(OpBuilder &builder,
   // Create the esi wrapper module
   auto hwModule = builder.create<hw::HWModuleOp>(
       op.getLoc(), builder.getStringAttr(op.getName() + "_esi"), ports);
+  opsToKeep.push_back(hwModule);
 
   // Create a reference to the external Calyx verilog module
   auto calyxModule = calyx::getExternHWModule(builder, op);
+  opsToKeep.push_back(calyxModule);
 
   // Unpack some values
 
@@ -240,19 +245,33 @@ LogicalResult CreateESIWrapper::createWrapper(OpBuilder &builder,
   bodyBuilder.create<hw::OutputOp>(outputChannels);
   // Remove the default built output op.
   hwModule.getBodyBlock()->back().erase();
-
-  hwModule->getParentOp()->dump();
   return success();
 }
 
-void CreateESIWrapper::runOnOperation() {
-  auto module = getOperation();
-  auto ctx = &getContext();
+static Optional<Operation *> getCalyxTopComponent(ModuleOp moduleOp) {
+  auto programOps = moduleOp.getOps<calyx::ProgramOp>();
+  if (!programOps.empty()) {
+    auto program = *programOps.begin();
+    return {program.getEntryPointComponent()};
+  }
+  return {};
+}
 
+Operation *CreateESIWrapper::inferTopOp(ModuleOp module) {
+  // todo: How to do this in a pretty way?
+  if (auto calyxTop = getCalyxTopComponent(module); calyxTop.hasValue())
+    return calyxTop.getValue();
+
+  // if firrtl module...
+
+  // if handshake module...
+
+  // At this point, go by symbol provided by user
   if (topOpt.empty()) {
     signalPassFailure();
-    mlir::emitError(module.getLoc()) << "Must provide a --top level function.";
-    return;
+    mlir::emitError(module.getLoc()) << "Top module could not be inferred; you "
+                                        "must provide a --top level function.";
+    return nullptr;
   }
 
   /// Operations can come in all manners of funky nested structures, so we'll
@@ -273,18 +292,37 @@ void CreateESIWrapper::runOnOperation() {
     signalPassFailure();
     mlir::emitError(module.getLoc())
         << "Top-level symbol '" << topOpt << "' not found in module.";
-    return;
+    return nullptr;
   }
+  return top;
+}
+
+void CreateESIWrapper::runOnOperation() {
+  auto module = getOperation();
+  auto ctx = &getContext();
+
+  Operation *top = inferTopOp(module);
+  if (!top)
+    return;
 
   auto builder = OpBuilder(ctx);
   builder.setInsertionPointToStart(module.getBody());
+  SmallVector<Operation *> opsToKeep;
 
   auto res = llvm::TypeSwitch<Operation *, LogicalResult>(top)
-                 .Case<calyx::ComponentOp>(
-                     [&](auto op) { return createWrapper(builder, op); })
+                 .Case<calyx::ComponentOp>([&](auto op) {
+                   return createWrapper(builder, op, opsToKeep);
+                 })
                  .Default([](auto op) {
                    return op->emitOpError() << "Unsupported operation";
                  });
+
+  // Erase everything which is not the wrapped module
+  for (auto &op : llvm::make_early_inc_range(*module.getBody())) {
+    auto it = llvm::find(opsToKeep, &op);
+    if (it == opsToKeep.end())
+      op.erase();
+  }
 
   if (res.failed())
     signalPassFailure();
