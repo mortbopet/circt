@@ -822,6 +822,59 @@ static LogicalResult verifyMemoryOp(handshake::MemoryOp op) {
   if (memrefType.getShape().size() != 1)
     return op.emitOpError() << "memref must have only a single dimension.";
 
+  unsigned st_count = op.st_count();
+  unsigned ld_count = op.ld_count();
+  int addressCount = memrefType.getShape().size();
+
+  auto inputType = op.inputs().getType();
+  auto outputType = op.outputs().getType();
+  Type dataType = memrefType.getElementType();
+  
+  unsigned numOperands = static_cast<int>(op.inputs().size());
+  unsigned numResults = static_cast<int>(op.outputs().size());
+  if(numOperands != (1+addressCount)*st_count + addressCount*ld_count)
+    return op.emitOpError("number of operands ") << numOperands << " does not match number expected of " << 
+    2*st_count + ld_count << " with " << addressCount << " address inputs per port";
+
+  if(numResults != st_count + 2*ld_count)
+    return op.emitOpError("number of results ") << numResults << " does not match number expected of " << 
+    st_count + 2*ld_count << " with " << addressCount << " address inputs per port";
+
+  Type addressType = st_count > 0 ? inputType[1] : inputType[0];
+
+  // Add types for the variadic operands
+  for(unsigned i = 0; i < st_count; i++) {
+    if(inputType[2*i] != dataType)
+      return op.emitOpError("data type for store port ") << i << ":" << inputType[2*i] <<
+      " doesn't match memory type " << dataType;
+    if(inputType[2*i+1] != addressType)
+      return op.emitOpError("address type for store port ") << i << ":" << inputType[2*i+1] <<
+      " doesn't match address type " << addressType;
+  }
+  for(unsigned i = 0; i < ld_count; i++) {
+    Type ldAddressType = inputType[2*st_count + i];
+    if(ldAddressType != addressType)
+      return op.emitOpError("address type for load port ") << i << ":" << ldAddressType <<
+      " doesn't match address type " << addressType;
+  }
+  for(unsigned i = 0; i < ld_count; i++) {
+    if(outputType[i] != dataType)
+      return op.emitOpError("data type for load port ") << i << ":" << outputType[i] <<
+      " doesn't match memory type " << dataType;
+  }
+  for(unsigned i = 0; i < st_count; i++) {
+    Type syncType = outputType[ld_count+i];
+    if(!syncType.isa<::mlir::NoneType>())
+      return op.emitOpError("data type for sync port for store port ") << i << ":" << syncType <<
+      " is not 'none'";
+  }
+  for(unsigned i = 0; i < ld_count; i++) {
+    Type syncType = outputType[ld_count+st_count+i];
+    if(!syncType.isa<::mlir::NoneType>())
+      return op.emitOpError("data type for sync port for load port ") << i << ":" << syncType <<
+      " is not 'none'";
+  }
+
   return success();
 }
 

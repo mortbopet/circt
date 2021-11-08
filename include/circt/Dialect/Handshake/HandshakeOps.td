@@ -533,12 +533,12 @@ def MemoryOp : Handshake_Op<"memory", [
     load addresses (lddata1, lddata2, ...), followed by all none outputs,
     ordered as operands (stnone1, stnone2,...ldnone1, ldnone2,...)
   }];
-  let arguments = (ins Variadic<AnyType>,
-                          I32Attr : $ld_count,
-                       I32Attr : $st_count,
-                       I32Attr : $id,
-                       MemRefTypeAttr : $type);
-  let results = (outs Variadic<AnyType>);
+  let arguments = (ins Variadic<AnyType> : $inputs,
+                   I32Attr : $ld_count,
+                   I32Attr : $st_count,
+                   I32Attr : $id,
+                   MemRefTypeAttr : $type);
+  let results = (outs Variadic<AnyType> : $outputs);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(
