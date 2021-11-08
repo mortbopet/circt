@@ -13,6 +13,7 @@
 #include "circt/Conversion/CalyxToHW.h"
 #include "circt/Dialect/Calyx/CalyxOps.h"
 #include "circt/Dialect/Comb/CombOps.h"
+#include "circt/Dialect/ESI/ESIDialect.h"
 #include "circt/Dialect/ESI/ESIOps.h"
 #include "circt/Dialect/ESI/ESITypes.h"
 #include "circt/Dialect/HW/HWAttributes.h"
@@ -335,10 +336,50 @@ void CreateESIWrapper::runOnOperation() {
     signalPassFailure();
 }
 
+static hw::HWModuleExternOp createExternWrapper(OpBuilder &builder,
+                                                mlir::FuncOp op) {
+  auto funcType = op.getType();
+  SmallVector<hw::PortInfo, 8> ports;
+  auto addHWPortInfo = [&](TypeRange types, hw::PortDirection direction,
+                           StringRef prefix) {
+    for (auto type : llvm::enumerate(types)) {
+      hw::PortInfo hwPortInfo;
+      hwPortInfo.direction = direction;
+
+      hwPortInfo.type = wrapChannel(builder, type.value());
+      hwPortInfo.argNum = type.index();
+      hwPortInfo.name =
+          builder.getStringAttr(prefix + std::to_string(type.index()));
+
+      // Expose everything but the go/done ports in the ESI wrapper.
+      if (!isGoDonePort(hwPortInfo.name))
+        ports.push_back(hwPortInfo);
+    }
+  };
+
+  addHWPortInfo(funcType.getInputs(), hw::PortDirection::INPUT, "arg");
+  addHWPortInfo(funcType.getResults(), hw::PortDirection::OUTPUT, "out");
+
+  // Create the ESI wrapper module.
+  auto hwOp = builder.create<hw::HWModuleExternOp>(
+      op.getLoc(), builder.getStringAttr(op.getName()), ports);
+  op.erase();
+  return hwOp;
+}
+
 } // anonymous namespace
 
 namespace circt {
 namespace esi {
+
+hw::HWModuleExternOp buildExternESIWrapper(OpBuilder &b, Operation *op) {
+  return llvm::TypeSwitch<Operation *, hw::HWModuleExternOp>(op)
+      .Case<mlir::FuncOp>([&](auto op) { return createExternWrapper(b, op); })
+      .Default([](auto op) {
+        op->emitOpError() << "Unsupported operation";
+        return nullptr;
+      });
+}
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createESIWrapperPass(llvm::Optional<StringRef> topOpt,

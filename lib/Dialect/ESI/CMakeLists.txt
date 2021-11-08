@@ -20,6 +20,8 @@ set(ESI_LinkLibs
   CIRCTComb
   CIRCTSV
   CIRCTHW
+  CIRCTCalyxToHW
+  CIRCTSeq
   MLIRIR
   MLIRTransforms
   MLIRTranslation

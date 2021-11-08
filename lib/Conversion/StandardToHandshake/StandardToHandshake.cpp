@@ -11,6 +11,8 @@
 
 #include "circt/Conversion/StandardToHandshake.h"
 #include "../PassDetail.h"
+#include "circt/Dialect/ESI/ESIOps.h"
+#include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/Handshake/HandshakeOps.h"
 #include "circt/Dialect/StaticLogic/StaticLogic.h"
 #include "mlir/Analysis/AffineAnalysis.h"
@@ -36,6 +38,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <map>
+#include <set>
 
 using namespace mlir;
 using namespace circt;
@@ -184,6 +187,36 @@ static bool isControlOperand(Operation *op, Value v) {
           [&](auto op) { return v == op.getOperand(0); })
       .Case<handshake::ControlMergeOp>([&](auto) { return true; })
       .Default([](auto) { return false; });
+}
+
+static LogicalResult convertESICalls(ModuleOp module) {
+  // A given builtin.func cannot be referenced in both an ESI- and non-ESI
+  // (handshake instance) context.
+  llvm::SmallVector<mlir::CallOp> callOps, ESICallOps;
+  std::set<StringRef> calledSymbols, ESICalledSymbols;
+  module.walk([&](mlir::CallOp callOp) {
+    if (callOp->hasAttr("ESI"))
+      ESICalledSymbols.insert(callOp.getCallee());
+    else
+      calledSymbols.insert(callOp.getCallee());
+  });
+  for (auto ESICalledSymbol : ESICalledSymbols) {
+    if (llvm::find(calledSymbols, ESICalledSymbol) != calledSymbols.end())
+      return module.emitOpError()
+             << "symbol '" << ESICalledSymbol
+             << "' called in both ESI and non-ESI context, which is illegal.";
+  }
+
+  // Convert each symbol definition referenced by ESI call ops to a
+  // hw.module.extern predeclaration.
+  for (auto esiSym : ESICalledSymbols) {
+    auto funcOp = module.lookupSymbol<mlir::FuncOp>(esiSym);
+    OpBuilder builder(module.getContext());
+    builder.setInsertionPoint(funcOp);
+    esi::buildExternESIWrapper(builder, funcOp);
+  }
+
+  return success();
 }
 
 template <typename FuncOp>
@@ -1647,13 +1680,26 @@ LogicalResult replaceCallOps(handshake::FuncOp f,
       if (auto callOp = dyn_cast<mlir::CallOp>(op)) {
         llvm::SmallVector<Value> operands;
         llvm::copy(callOp.getOperands(), std::back_inserter(operands));
-        operands.push_back(cntrlMg->getResult(0));
         rewriter.setInsertionPoint(callOp);
-        auto instanceOp = rewriter.create<handshake::InstanceOp>(
-            callOp.getLoc(), callOp.getCallee(), callOp.getResultTypes(),
-            operands);
+
+        Operation *instanceLikeOp = nullptr;
+        if (callOp->getAttr("ESI")) {
+          // This is an external module with an ESI interface; use
+          // handshake.call.
+          instanceLikeOp = rewriter.create<handshake::CallOp>(
+              callOp.getLoc(), callOp.getCallee(), callOp.getResultTypes(),
+              operands);
+        } else {
+          // This is a module that is to be lowered into handshake IR; use
+          // handshake.instance.
+          operands.push_back(cntrlMg->getResult(0)); // control token.
+          instanceLikeOp = rewriter.create<handshake::InstanceOp>(
+              callOp.getLoc(), callOp.getCallee(), callOp.getResultTypes(),
+              operands);
+        }
         // Replace all results of the source callOp.
-        for (auto it : llvm::zip(callOp.getResults(), instanceOp.getResults()))
+        for (auto it :
+             llvm::zip(callOp.getResults(), instanceLikeOp->getResults()))
           std::get<0>(it).replaceAllUsesWith(std::get<1>(it));
         rewriter.eraseOp(callOp);
       }
@@ -1884,9 +1930,18 @@ struct HandshakeDataflowPass
   void runOnOperation() override {
     ModuleOp m = getOperation();
 
+    // Verify and convert calls to (eventually) external hardware modules,
+    // through ESI interfaces.
+    if (convertESICalls(m).failed()) {
+      signalPassFailure();
+      return;
+    }
+
     for (auto funcOp : llvm::make_early_inc_range(m.getOps<mlir::FuncOp>())) {
-      if (failed(lowerFuncOp(funcOp, &getContext())))
+      if (failed(lowerFuncOp(funcOp, &getContext()))) {
         signalPassFailure();
+        return;
+      }
     }
 
     // Legalize the resulting regions, which can have no basic blocks.

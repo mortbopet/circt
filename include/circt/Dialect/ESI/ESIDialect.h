@@ -52,6 +52,11 @@ void resolvePortNames(Operation *modOp, ArrayRef<StringRef> portNames,
 Operation *buildESIWrapper(OpBuilder &b, Operation *mod,
                            ArrayRef<ESIPortValidReadyMapping> esiPortNames);
 
+/// Build an external ESI module definition based on a source high-level
+/// operation. The wrapper is named identically to the symbol-defining op. The
+/// provided op will be erased as a side-effect of this function.
+hw::HWModuleExternOp buildExternESIWrapper(OpBuilder &b, Operation *op);
+
 } // namespace esi
 } // namespace circt
 

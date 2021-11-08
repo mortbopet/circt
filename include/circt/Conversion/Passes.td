@@ -146,7 +146,8 @@ def HandshakeAnalysis : Pass<"handshake-analyze", "mlir::ModuleOp"> {
 def HandshakeDataflow : Pass<"lower-std-to-handshake", "mlir::ModuleOp"> {
   let summary = "Lower Standard MLIR into Handshake IR";
   let constructor = "circt::createHandshakeDataflowPass()";
-  let dependentDialects = ["handshake::HandshakeDialect"];
+  let dependentDialects = [
+    "handshake::HandshakeDialect", "esi::ESIDialect", "hw::HWDialect"];
 }
 
 def HandshakeCanonicalize : Pass<"handshake-canonicalize", "handshake::FuncOp"> {
