@@ -205,12 +205,12 @@ def ReturnOp : Handshake_Op<"return", [Terminator]> {
 
   let builders = [OpBuilder<(ins "ArrayRef<Value>":$operands)>];
 
-  let printer = "return ::print$cppClass(p, *this);";
   let verifier = "return ::verify(*this);";
-  let parser = "return ::parse$cppClass(parser, result);";
+  let assemblyFormat = [{ operands attr-dict `:` type(operands) }];
 }
 
-def BufferOp : Handshake_Op<"buffer", [NoSideEffect, HasClock]> {
+def BufferOp : Handshake_Op<"buffer", [NoSideEffect, HasClock,
+  AllTypesMatch<["operand", "result"]>]> {
   let summary = "buffer operation";
 
   let description = [{
@@ -220,9 +220,9 @@ def BufferOp : Handshake_Op<"buffer", [NoSideEffect, HasClock]> {
     buffer.
   }];
 
-  let arguments = (ins AnyType, BoolAttr:$sequential, BoolAttr:$control,
+  let arguments = (ins AnyType:$operand, BoolAttr:$sequential, BoolAttr:$control,
                    Confined<I32Attr, [IntMinValue<1>]>:$slots);
-  let results = (outs AnyType);
+  let results = (outs AnyType:$result);
 
   let extraClassDeclaration = [{
     bool isSequential() {
@@ -235,6 +235,7 @@ def BufferOp : Handshake_Op<"buffer", [NoSideEffect, HasClock]> {
       return (*this)->getAttrOfType<IntegerAttr>("slots").getValue();
     }
   }];
+  let assemblyFormat = [{ operands attr-dict `:` type($operand)}];
 }
 
 def ForkOp : Handshake_Op<"fork", [
@@ -249,19 +250,24 @@ def ForkOp : Handshake_Op<"fork", [
     output as soon as the corresponding successor is available.
   }];
 
-  let arguments = (ins AnyType, BoolAttr : $control);
-  let results = (outs Variadic<AnyType>);
+  let arguments = (ins AnyType : $operand, BoolAttr : $control);
+  let results = (outs Variadic<AnyType> : $result);
 
   let hasCanonicalizer = 1;
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand, "int":$outputs)>];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 
   let extraClassDeclaration = [{
     bool isControl() { return (*this)->getAttrOfType<BoolAttr>("control").getValue(); }
   }];
 }
 
-def LazyForkOp : Handshake_Op<"lazy_fork", [NoSideEffect]> {
+def LazyForkOp : Handshake_Op<"lazy_fork", [NoSideEffect,
+  TypesMatchWith<"data operand type matches result type",
+                  "operand", "result", "$_self">
+  ]> {
   let summary = "lazy fork operation";
   let description = [{
     The "handshake.lfork" operation represents a lazy fork operation.
@@ -269,8 +275,10 @@ def LazyForkOp : Handshake_Op<"lazy_fork", [NoSideEffect]> {
     output when all successors are available.
   }];
 
-  let arguments = (ins AnyType, BoolAttr : $control);
-  let results = (outs Variadic<AnyType>);
+  let arguments = (ins AnyType : $operand, BoolAttr : $control);
+  let results = (outs Variadic<AnyType> : $result);
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand, "int":$outputs)>];
@@ -293,7 +301,9 @@ def MergeOp : Handshake_Op<"merge", [
   }];
 
   let arguments = (ins Variadic<AnyType>:$dataOperands);
-  let results = (outs AnyType);
+  let results = (outs AnyType:$result);
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 
   let hasCanonicalizer = 1;
   let builders = [OpBuilder<(ins "Value":$operand, "int":$inputs)>];
@@ -315,11 +325,13 @@ def MuxOp : Handshake_Op<"mux", [
     should propagate to its single output.  The number of data inputs
     corresponds to the number of predecessor blocks.
   }];
-  let arguments = (ins AnyType : $selectOperand,
+  let arguments = (ins Index : $selectOperand,
 							  Variadic<AnyType> : $dataOperands);
-  let results = (outs AnyType);
+  let results = (outs AnyType : $result);
 
   let builders = [OpBuilder<(ins "Value":$operand, "int":$inputs)>];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
   let verifier = "return ::verify(*this);";
 }
 
@@ -338,11 +350,13 @@ def ControlMergeOp : Handshake_Op<"control_merge", [
     component(i.e., has no data but only bidirectional handshake).
   }];
 
-  let arguments = (ins Variadic<AnyType>:$dataOperands, BoolAttr : $control);
-  let results = (outs Variadic<AnyType>);
+  let arguments = (ins Variadic<AnyType> : $dataOperands, BoolAttr : $control);
+  let results = (outs AnyType : $result, Index : $index);
 
   let hasCanonicalizer = 1;
   let builders = [OpBuilder<(ins "Value":$operand, "int":$inputs)>];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 
   let extraClassDeclaration = [{
     bool isControl() {
@@ -353,8 +367,9 @@ def ControlMergeOp : Handshake_Op<"control_merge", [
 
 def BranchOp : Handshake_Op<"branch", [
   NoSideEffect, DeclareOpInterfaceMethods<ExecutableOpInterface>,
-  DeclareOpInterfaceMethods<GeneralOpInterface>
-]> {
+  DeclareOpInterfaceMethods<GeneralOpInterface>,
+  AllTypesMatch<["dataOperand", "dataResult"]>
+  ]> {
   let summary = "branch operation";
   let description = [{
       The "handshake.branch" operation represents an unconditional
@@ -375,12 +390,17 @@ def BranchOp : Handshake_Op<"branch", [
       return (*this)->getAttrOfType<BoolAttr>("control").getValue();
     }
   }];
+  let assemblyFormat = [{ operands attr-dict `:` type($dataOperand)}];
 }
 
 def ConditionalBranchOp : Handshake_Op<"conditional_branch", [
   NoSideEffect, DeclareOpInterfaceMethods<ExecutableOpInterface>,
   DeclareOpInterfaceMethods<NamedIOInterface, ["getOperandName"]>,
-  DeclareOpInterfaceMethods<NamedIOInterface, ["getResultName"]>
+  DeclareOpInterfaceMethods<NamedIOInterface, ["getResultName"]>,
+  TypesMatchWith<"data operand type matches true branch result type",
+                    "dataOperand", "trueResult", "$_self">,
+  TypesMatchWith<"data operand type matches false branch result type",
+                    "dataOperand", "falseResult", "$_self">
 ]> {
   let summary = "conditional branch operation";
   let description = [{
@@ -409,6 +429,7 @@ def ConditionalBranchOp : Handshake_Op<"conditional_branch", [
 
     bool isControl() { return (*this)->getAttrOfType<BoolAttr>("control").getValue(); }
   }];
+  let assemblyFormat = [{ operands attr-dict `:` type($dataOperand)}];
 }
 
 def SinkOp
@@ -418,10 +439,11 @@ def SinkOp
     The "handshake.sink" operation discards any data that arrives at its
          input.The sink has no successors and it can continuously consume data.
   }];
-  let arguments = (ins AnyType);
+  let arguments = (ins AnyType:$operand);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand)>];
+  let assemblyFormat = [{ operands attr-dict `:` type($operand)}];
 }
 
 def SourceOp : Handshake_Op<"source", [NoSideEffect]> {
@@ -432,7 +454,8 @@ def SourceOp : Handshake_Op<"source", [NoSideEffect]> {
     successor can consume at any point in time.
   }];
 
-  let results = (outs AnyType);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = [{ operands attr-dict `:` type($result)}];
 }
 
 def NeverOp : Handshake_Op<"never", [NoSideEffect]> {
@@ -443,7 +466,8 @@ def NeverOp : Handshake_Op<"never", [NoSideEffect]> {
     never trigger the successor at any point in time.
   }];
 
-  let results = (outs AnyType);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = [{ operands attr-dict `:` type($result)}];
 }
 
 def ConstantOp : Handshake_Op<"constant", [
@@ -459,7 +483,7 @@ def ConstantOp : Handshake_Op<"constant", [
   }];
 
   let arguments = (ins AnyAttr:$value, AnyType:$ctrl);
-  let results = (outs AnyType);
+  let results = (outs AnyType : $result);
 
   // let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Attribute":$value, "Value":$ctrl)>];
@@ -468,6 +492,7 @@ def ConstantOp : Handshake_Op<"constant", [
   let extraClassDeclaration = [{
     Attribute getValue() { return (*this)->getAttr("value"); }
   }];
+  let assemblyFormat = [{ operands attr-dict `:` type($ctrl) `,` type($result)}];
 }
 
 def EndOp
@@ -479,10 +504,11 @@ def EndOp
     all memory accesses have completed.  Currently not used(data
     returned through ReturnOp).
   }];
-  let arguments = (ins AnyType : $control, Variadic<AnyType>);
+  let arguments = (ins AnyType : $control, Variadic<AnyType> : $operands);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand)>];
+  let assemblyFormat = [{ operands attr-dict `:` type($control) `,` type($operands)}];
 }
 
 def StartOp : Handshake_Op<"start", [
@@ -495,10 +521,11 @@ def StartOp : Handshake_Op<"start", [
   }];
 
   let arguments = (ins BoolAttr : $control);
-  let results = (outs NoneType);
+  let results = (outs NoneType : $result);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins)>];
+  let assemblyFormat = [{ operands attr-dict `:` type($result)}];
 }
 
 def TerminatorOp : Handshake_Op<"terminator", [Terminator]> {
@@ -559,6 +586,8 @@ def MemoryOp : Handshake_Op<"memory", [
       return (*this)->getAttrOfType<TypeAttr>("type").getValue().cast<MemRefType>();
     }
   }];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
   let verifier = "return ::verify$cppClass(*this);";
 }
 
@@ -622,10 +651,12 @@ def LoadOp
      Results: data (to successor), address indices (to MemoryOp).
   }];
 
-  let arguments = (ins Variadic<AnyType>, AnyType, NoneType);
-  let results = (outs AnyType, Variadic<AnyType>:$addressResults);
+  let arguments = (ins Variadic<AnyType>: $address, AnyType:$data, NoneType:$sync);
+  let results = (outs AnyType:$dataResult, Variadic<AnyType>:$addressResults);
 
   let builders = [OpBuilder<(ins "Value":$memref, "ArrayRef<Value>":$indices)>];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 }
 
 def StoreOp : Handshake_Op<"store", [
@@ -644,11 +675,13 @@ def StoreOp : Handshake_Op<"store", [
     Results: data and address indices (sent to MemoryOp).
   }];
 
-  let arguments = (ins AnyType, Variadic<AnyType>, NoneType);
-  let results = (outs AnyType, Variadic<AnyType>);
+  let arguments = (ins AnyType:$data, Variadic<AnyType>:$address, NoneType:$sync);
+  let results = (outs AnyType:$dataResult, Variadic<AnyType>:$addressResult);
 
   let builders =
       [OpBuilder<(ins "Value":$valueToStore, "ArrayRef<Value>":$indices)>];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 }
 
 def JoinOp : Handshake_Op<"join", [
@@ -660,11 +693,12 @@ def JoinOp : Handshake_Op<"join", [
     A control-only synchronizer.  Produces a valid output when all
     inputs become available.
   }];
-  let arguments = (ins Variadic<NoneType>, BoolAttr : $control);
-  let results = (outs NoneType);
+  let arguments = (ins Variadic<NoneType> : $data, BoolAttr : $control);
+  let results = (outs NoneType : $result);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "ArrayRef<Value>":$operands)>];
+  let assemblyFormat = [{ operands attr-dict `:` type($data) }];
 }
 
 def I4 : I<4>;

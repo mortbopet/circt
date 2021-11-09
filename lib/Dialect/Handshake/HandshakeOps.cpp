@@ -134,6 +134,46 @@ void ForkOp::build(OpBuilder &builder, OperationState &result, Value operand,
   result.addAttribute("control", builder.getBoolAttr(isControl));
 }
 
+static ::mlir::ParseResult parseForkOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> allOperands;
+  ::mlir::Type operandRawTypes[1];
+  ::llvm::ArrayRef<::mlir::Type> operandTypes(operandRawTypes);
+  ::mlir::SmallVector<::mlir::Type, 1> resultTypes;
+  ::llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
+  if (parser.parseLSquare())
+    return ::mlir::failure();
+  int size;
+  if (parser.parseInteger(size))
+    return ::mlir::failure();
+  if (parser.parseRSquare())
+    return ::mlir::failure();
+  if (parser.parseOperandList(allOperands))
+    return ::mlir::failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return ::mlir::failure();
+  if (parser.parseColon())
+    return ::mlir::failure();
+
+  if (parser.parseType(operandRawTypes[0]))
+    return ::mlir::failure();
+  // Add types for the variadic result  
+  resultTypes.assign(size, operandRawTypes[0]);
+  result.addTypes(resultTypes);
+  if (parser.resolveOperands(allOperands, operandTypes, allOperandLoc, result.operands))
+    return ::mlir::failure();
+  return ::mlir::success();
+}
+
+static void printForkOp(::mlir::OpAsmPrinter &p, ForkOp op) {
+  p << '[' << op.result().size() << ']';
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict((op)->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << ::llvm::ArrayRef<::mlir::Type>(op.operand().getType());
+}
+
 void handshake::ForkOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                     MLIRContext *context) {
   results.insert<circt::handshake::EliminateSimpleForksPattern>(context);
@@ -175,6 +215,20 @@ void LazyForkOp::build(OpBuilder &builder, OperationState &result,
   result.addAttribute("control", builder.getBoolAttr(isControl));
 }
 
+static ::mlir::ParseResult parseLazyForkOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  return parseForkOp(parser, result);
+ }
+
+static void printLazyForkOp(::mlir::OpAsmPrinter &p, LazyForkOp op) {
+  p << '[' << op.result().size() << ']';
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict((op)->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << ::llvm::ArrayRef<::mlir::Type>(op.operand().getType());
+}
+
 void MergeOp::build(OpBuilder &builder, OperationState &result, Value operand,
                     int inputs) {
 
@@ -188,6 +242,46 @@ void MergeOp::build(OpBuilder &builder, OperationState &result, Value operand,
   // Operands from predecessor blocks
   for (int i = 0, e = inputs; i < e; ++i)
     result.addOperands(operand);
+}
+
+static ::mlir::ParseResult parseMergeOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> allOperands;
+  ::mlir::SmallVector<::mlir::Type, 1> dataOperandsTypes;
+  ::mlir::Type resultRawTypes[1];
+  ::llvm::ArrayRef<::mlir::Type> resultTypes(resultRawTypes);
+  ::llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
+  if (parser.parseLSquare())
+    return ::mlir::failure();
+  int size;
+  if (parser.parseInteger(size))
+    return ::mlir::failure();
+  if (parser.parseRSquare())
+    return ::mlir::failure();
+  if (parser.parseOperandList(allOperands))
+    return ::mlir::failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return ::mlir::failure();
+  if (parser.parseColon())
+    return ::mlir::failure();
+
+  if (parser.parseType(resultRawTypes[0]))
+    return ::mlir::failure();
+  // Add types for the variadic operands
+  dataOperandsTypes.assign(size, resultRawTypes[0]);
+  result.addTypes(resultTypes);
+  if (parser.resolveOperands(allOperands, dataOperandsTypes, allOperandLoc, result.operands))
+    return ::mlir::failure();
+  return ::mlir::success();
+}
+
+void printMergeOp(::mlir::OpAsmPrinter &p, MergeOp op) {
+  p << '[' << op.dataOperands().size() << ']';
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << ::llvm::ArrayRef<::mlir::Type>(op.result().getType());
 }
 
 void MergeOp::getCanonicalizationPatterns(RewritePatternSet &results,
@@ -239,6 +333,47 @@ void MuxOp::build(OpBuilder &builder, OperationState &result, Value operand,
 
 std::string handshake::MuxOp::getOperandName(unsigned int idx) {
   return idx == 0 ? "select" : defaultOperandName(idx - 1);
+}
+
+static ::mlir::ParseResult parseMuxOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> allOperands;
+  ::mlir::Type resultRawTypes[1];
+  ::llvm::ArrayRef<::mlir::Type> resultTypes(resultRawTypes);
+  ::mlir::SmallVector<::mlir::Type, 1> dataOperandsTypes;
+  ::llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
+  if (parser.parseLSquare())
+    return ::mlir::failure();
+  int size;
+  if (parser.parseInteger(size))
+    return ::mlir::failure();
+  if (parser.parseRSquare())
+    return ::mlir::failure();
+  if (parser.parseOperandList(allOperands))
+    return ::mlir::failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return ::mlir::failure();
+  if (parser.parseColon())
+    return ::mlir::failure();
+
+  if (parser.parseType(resultRawTypes[0]))
+    return ::mlir::failure();
+  // Add types for the variadic operands
+  dataOperandsTypes.assign(size, resultRawTypes[0]);
+  ::mlir::Type odsBuildableType0 = parser.getBuilder().getIndexType();
+  result.addTypes(resultTypes);
+  if (parser.resolveOperands(allOperands, ::llvm::concat<const Type>(::llvm::ArrayRef<::mlir::Type>(odsBuildableType0), ::llvm::ArrayRef<::mlir::Type>(dataOperandsTypes)), allOperandLoc, result.operands))
+    return ::mlir::failure();
+  return ::mlir::success();
+}
+
+static void printMuxOp(::mlir::OpAsmPrinter &p, MuxOp op) {
+  p << '[' << op.dataOperands().size() << ']';
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << ::llvm::ArrayRef<::mlir::Type>(op.result().getType());
 }
 
 bool handshake::MuxOp::tryExecute(
@@ -318,6 +453,47 @@ void ControlMergeOp::build(OpBuilder &builder, OperationState &result,
     result.addOperands(operand);
 
   result.addAttribute("control", builder.getBoolAttr(true));
+}
+
+static ::mlir::ParseResult parseControlMergeOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> allOperands;
+  ::mlir::Type resultType;
+  ::mlir::SmallVector<::mlir::Type, 1> dataOperandsTypes;
+  ::llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
+  if (parser.parseLSquare())
+    return ::mlir::failure();
+  int size;
+  if (parser.parseInteger(size))
+    return ::mlir::failure();
+  if (parser.parseRSquare())
+    return ::mlir::failure();
+  if (parser.parseOperandList(allOperands))
+    return ::mlir::failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return ::mlir::failure();
+  if (parser.parseColon())
+    return ::mlir::failure();
+
+  if (parser.parseType(resultType))
+    return ::mlir::failure();
+  ::mlir::Type odsBuildableType0 = parser.getBuilder().getIndexType();
+  // Add types for the variadic operands
+  dataOperandsTypes.assign(size, resultType);
+  result.addTypes(resultType);
+  result.addTypes(odsBuildableType0);
+  if (parser.resolveOperands(allOperands, dataOperandsTypes, allOperandLoc, result.operands))
+    return ::mlir::failure();
+  return ::mlir::success();
+}
+
+void printControlMergeOp(::mlir::OpAsmPrinter &p, ControlMergeOp op) {
+  p << '[' << op.dataOperands().size() << ']';
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << ::llvm::ArrayRef<::mlir::Type>(op.result().getType());
 }
 
 static ParseResult verifyFuncOp(handshake::FuncOp op) {
@@ -954,6 +1130,60 @@ void MemoryOp::build(OpBuilder &builder, OperationState &result,
   }
 }
 
+static ::mlir::ParseResult parseMemoryOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> allOperands;
+  ::mlir::SmallVector<::mlir::Type, 1> operandTypes;
+  ::mlir::SmallVector<::mlir::Type, 1> resultTypes;
+  ::mlir::Type addressRawType[1];
+  ::mlir::Type dataRawType[1];
+  ::llvm::ArrayRef<::mlir::Type> addressType(addressRawType);
+  ::llvm::ArrayRef<::mlir::Type> dataType(dataRawType);
+  ::llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
+  if (parser.parseOperandList(allOperands))
+    return ::mlir::failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return ::mlir::failure();
+  if (parser.parseColon())
+    return ::mlir::failure();
+  if (parser.parseType(addressRawType[0]))
+    return ::mlir::failure();
+
+  int st_count = result.attributes.get("st_count").cast<::mlir::IntegerAttr>().getInt();
+  int ld_count = result.attributes.get("ld_count").cast<::mlir::IntegerAttr>().getInt();
+  Type type = result.attributes.get("type").cast<::mlir::TypeAttr>().getValue();
+  dataRawType[0] = type.cast<::mlir::MemRefType>().getElementType();
+
+  ::mlir::Type noneType = parser.getBuilder().getNoneType();
+  // Add types for the variadic operands
+  for(int i = 0; i < st_count; i++) {
+    operandTypes.push_back(dataRawType[0]);
+    operandTypes.push_back(addressRawType[0]);
+  }
+  for(int i = 0; i < ld_count; i++) {
+    operandTypes.push_back(addressRawType[0]);
+  }
+  for(int i = 0; i < ld_count; i++) {
+    resultTypes.push_back(dataRawType[0]);
+  }
+  for(int i = 0; i < st_count + ld_count; i++) {
+    resultTypes.push_back(noneType);
+  }
+  
+  result.addTypes(resultTypes);
+  if (parser.resolveOperands(allOperands, operandTypes, allOperandLoc, result.operands))
+    return ::mlir::failure();
+  return ::mlir::success();
+}
+
+void printMemoryOp(::mlir::OpAsmPrinter &p, MemoryOp op) {
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << op.inputs().getType()[1];
+}
+
 bool handshake::MemoryOp::allocateMemory(
     llvm::DenseMap<unsigned, unsigned> &memoryMap,
     std::vector<std::vector<llvm::Any>> &store,
@@ -1085,6 +1315,64 @@ void handshake::LoadOp::build(OpBuilder &builder, OperationState &result,
   result.types.append(indices.size(), builder.getIndexType());
 }
 
+static ::mlir::ParseResult parseLoadOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> allOperands;
+  ::mlir::SmallVector<::mlir::Type, 1> dataOperandsTypes;
+  ::mlir::Type addressRawType[1];
+  ::mlir::Type dataRawType[1];
+  ::llvm::ArrayRef<::mlir::Type> addressType(addressRawType);
+  ::llvm::ArrayRef<::mlir::Type> dataType(dataRawType);
+  ::mlir::SmallVector<::mlir::Type, 1> addressTypes;
+  ::mlir::SmallVector<::mlir::Type, 1> dataTypes;
+  ::llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
+  if (parser.parseLSquare())
+    return ::mlir::failure();
+  int size;
+  if (parser.parseInteger(size))
+    return ::mlir::failure();
+  if (parser.parseRSquare())
+    return ::mlir::failure();
+  if (parser.parseOperandList(allOperands))
+    return ::mlir::failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return ::mlir::failure();
+  if (parser.parseColon())
+    return ::mlir::failure();
+  if (parser.parseType(addressRawType[0]))
+    return ::mlir::failure();
+  if (parser.parseComma())
+    return ::mlir::failure();
+  if (parser.parseType(dataRawType[0]))
+    return ::mlir::failure();
+
+  ::mlir::Type noneType = parser.getBuilder().getNoneType();
+  // Add types for the variadic operands
+  dataTypes.assign(size, dataRawType[0]);
+  addressTypes.assign(size, addressRawType[0]);
+
+  dataOperandsTypes.assign(size, addressRawType[0]);
+  dataOperandsTypes.push_back(dataRawType[0]);
+  dataOperandsTypes.push_back(noneType);
+  
+  result.addTypes(dataTypes);
+  result.addTypes(addressType);
+  if (parser.resolveOperands(allOperands, dataOperandsTypes, allOperandLoc, result.operands))
+    return ::mlir::failure();
+  return ::mlir::success();
+}
+
+void printLoadOp(::mlir::OpAsmPrinter &p, LoadOp op) {
+  p << '[' << op.address().size() << ']';
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << op.address().getType();
+  p << ", ";
+  p << op.data().getType();
+}
+
 bool handshake::LoadOp::tryExecute(
     llvm::DenseMap<mlir::Value, llvm::Any> &valueMap,
     llvm::DenseMap<unsigned, unsigned> &memoryMap,
@@ -1150,6 +1438,65 @@ void handshake::StoreOp::execute(std::vector<llvm::Any> &ins,
   outs[1] = ins[1];
 }
 
+static ::mlir::ParseResult parseStoreOp(::mlir::OpAsmParser &parser, ::mlir::OperationState &result) {
+  ::mlir::SmallVector<::mlir::OpAsmParser::OperandType, 4> allOperands;
+  ::mlir::SmallVector<::mlir::Type, 1> dataOperandsTypes;
+  ::mlir::Type addressRawType[1];
+  ::mlir::Type dataRawType[1];
+  ::llvm::ArrayRef<::mlir::Type> addressType(addressRawType);
+  ::llvm::ArrayRef<::mlir::Type> dataType(dataRawType);
+  ::mlir::SmallVector<::mlir::Type, 1> addressTypes;
+  ::mlir::SmallVector<::mlir::Type, 1> dataTypes;
+  ::llvm::SMLoc allOperandLoc = parser.getCurrentLocation();
+  if (parser.parseLSquare())
+    return ::mlir::failure();
+  int size;
+  if (parser.parseInteger(size))
+    return ::mlir::failure();
+  if (parser.parseRSquare())
+    return ::mlir::failure();
+  if (parser.parseOperandList(allOperands))
+    return ::mlir::failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return ::mlir::failure();
+  if (parser.parseColon())
+    return ::mlir::failure();
+  if (parser.parseType(dataRawType[0]))
+    return ::mlir::failure();
+  if (parser.parseComma())
+    return ::mlir::failure();
+  if (parser.parseType(addressRawType[0]))
+    return ::mlir::failure();
+
+  ::mlir::Type noneType = parser.getBuilder().getNoneType();
+  // Add types for the variadic operands
+  dataTypes.assign(size, dataRawType[0]);
+  addressTypes.assign(size, addressRawType[0]);
+
+  dataOperandsTypes.push_back(dataRawType[0]);
+  dataOperandsTypes.insert(dataOperandsTypes.end(), size, addressRawType[0]);
+//  for(int i = 0; dataOperandsTypes.assign(size, addressRawType[0]);
+  dataOperandsTypes.push_back(noneType);
+  
+  result.addTypes(dataType);
+  result.addTypes(addressTypes);
+  if (parser.resolveOperands(allOperands, dataOperandsTypes, allOperandLoc, result.operands))
+    return ::mlir::failure();
+  return ::mlir::success();
+}
+
+void printStoreOp(::mlir::OpAsmPrinter &p, StoreOp op) {
+  p << '[' << op.address().size() << ']';
+  p << ' ';
+  p << op.getOperation()->getOperands();
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
+  p << ' ' << ":";
+  p << ' ';
+  p << op.data().getType();
+  p << ", ";
+  p << op.address().getType();
+}
+
 bool handshake::StoreOp::tryExecute(
     llvm::DenseMap<mlir::Value, llvm::Any> &valueMap,
     llvm::DenseMap<unsigned, unsigned> &memoryMap,
@@ -1198,24 +1545,6 @@ static LogicalResult verifyInstanceOp(handshake::InstanceOp op) {
 // TableGen'd op method definitions
 //===----------------------------------------------------------------------===//
 
-// Code below is largely duplicated from Standard/Ops.cpp
-static ParseResult parseReturnOp(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::OperandType, 2> opInfo;
-  SmallVector<Type, 2> types;
-  llvm::SMLoc loc = parser.getCurrentLocation();
-  return failure(parser.parseOperandList(opInfo) ||
-                 (!opInfo.empty() && parser.parseColonTypeList(types)) ||
-                 parser.resolveOperands(opInfo, types, loc, result.operands));
-}
-
-static void printReturnOp(OpAsmPrinter &p, handshake::ReturnOp op) {
-  if (op.getNumOperands() != 0) {
-    p << ' ';
-    p.printOperands(op.getOperands());
-    p << " : ";
-    interleaveComma(op.getOperandTypes(), p);
-  }
-}
 
 static LogicalResult verify(handshake::ReturnOp op) {
   auto *parent = op->getParentOp();
