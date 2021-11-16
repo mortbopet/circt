@@ -6,50 +6,50 @@ module {
   // CHECK-SAME:                         %[[VAL_0:.*]]: none, ...) -> none attributes {argNames = ["arg0"], resNames = ["outCtrl"]} {
   handshake.func @simple(%arg0: none, ...) -> none {
 
-    // CHECK: %[[VAL_1:.*]] = "handshake.constant"(%[[VAL_0:.*]]) {value = 1 : index} : (none) -> index
-    %0 = "handshake.constant"(%arg0) {value = 1 : index} : (none) -> index
+    // CHECK: %[[VAL_1:.*]] = constant(%[[VAL_0:.*]]) {value = 1 : index} : (none) -> index
+    %0 = constant %arg0 {value = 1 : index} : index
 
-    // CHECK-NOT: %[[TMP_0:.*]] = "handshake.branch"(%[[VAL_0:.*]]) {control = true} : (none) -> none
-    // CHECK-NOT: %[[TMP_1:.*]] = "handshake.branch"(%[[VAL_1:.*]]) {control = false} : (index) -> index
-    %1 = "handshake.branch"(%arg0) {control = true} : (none) -> none
-    %2 = "handshake.branch"(%0) {control = false} : (index) -> index
+    // CHECK-NOT: %[[TMP_0:.*]] = branch(%[[VAL_0:.*]]) {control = true} : (none) -> none
+    // CHECK-NOT: %[[TMP_1:.*]] = branch(%[[VAL_1:.*]]) : (index) -> index
+    %1 = br %arg0 : none
+    %2 = br %0 : index
 
-    // CHECK-NOT: %[[TMP_2:.*]] = "handshake.merge"(%[[TMP_0:.*]]) : (none) -> none
-    // CHECK-NOT: %[[TMP_3:.*]] = "handshake.merge"(%[[TMP_1:.*]]) : (index) -> index
-    %3 = "handshake.merge"(%1) : (none) -> none
-    %4 = "handshake.merge"(%2) : (index) -> index
+    // CHECK-NOT: %[[TMP_2:.*]] = merge(%[[TMP_0:.*]]) : (none) -> none
+    // CHECK-NOT: %[[TMP_3:.*]] = merge(%[[TMP_1:.*]]) : (index) -> index
+    %3 = merge %1 : none
+    %4 = merge %2 : index
 
-    // CHECK-NEXT: %[[VAL_2:.*]]:2 = "handshake.fork"(%[[VAL_0:.*]]) {control = true} : (none) -> (none, none)
-    %5:2 = "handshake.fork"(%3) {control = true} : (none) -> (none, none)
-    %6 = "handshake.constant"(%5#0) {value = 42 : index} : (none) -> index
+    // CHECK-NEXT: %[[VAL_2:.*]]:2 = fork(%[[VAL_0:.*]]) {control = true} : (none) -> (none, none)
+    %5:2 = fork [2] %3 : none
+    %6 = constant %5#0 {value = 42 : index} : index
     %7 = arith.addi %4, %6 : index
-    "handshake.sink"(%7) : (index) -> ()
+    sink %7 : index
     return %5#1 : none
   }
 
   // CHECK-LABEL: cmerge_with_control_used
   handshake.func @cmerge_with_control_used(%arg0: none, %arg1: none, %arg2: none) -> (none, index, none) {
-    // CHECK: "handshake.control_merge"(%{{.+}}, %{{.+}})
+    // CHECK: control_merge(%{{.+}}, %{{.+}})
     // CHECK: return
-    %result, %index = "handshake.control_merge"(%arg0, %arg1) {control = true} : (none, none) -> (none, index)
+    %result, %index = control_merge %arg0, %arg1 : none
     return %result, %index, %arg2 : none, index, none
   }
 
   // CHECK-LABEL: cmerge_with_control_sunk
   handshake.func @cmerge_with_control_sunk(%arg0: none, %arg1: none, %arg2: none) -> (none, none) {
-    // CHECK: "handshake.merge"(%{{.+}}, %{{.+}})
-    // CHECK-NOT: "handshake.control_merge"
-    // CHECK-NOT: "handshake.sink"
-    %result, %index = "handshake.control_merge"(%arg0, %arg1) {control = true} : (none, none) -> (none, index)
-    "handshake.sink"(%index) : (index) -> ()
+    // CHECK: merge(%{{.+}}, %{{.+}})
+    // CHECK-NOT: control_merge
+    // CHECK-NOT: sink
+    %result, %index = control_merge %arg0, %arg1 : none
+    sink %index : index
     return %result, %arg2 : none, none
   }
 
   // CHECK-LABEL: cmerge_with_control_ignored
   handshake.func @cmerge_with_control_ignored(%arg0: none, %arg1: none, %arg2: none) -> (none, none) {
-    // CHECK: "handshake.merge"(%{{.+}}, %{{.+}})
-    // CHECK-NOT: "handshake.control_merge"
-    %result, %index = "handshake.control_merge"(%arg0, %arg1) {control = true} : (none, none) -> (none, index)
+    // CHECK: merge(%{{.+}}, %{{.+}})
+    // CHECK-NOT: control_merge
+    %result, %index = control_merge %arg0, %arg1 : none
     return %result, %arg2 : none, none
   }
 
@@ -57,8 +57,8 @@ module {
   handshake.func @sunk_constant(%arg0: none) -> (none) {
     // CHECK-NOT: handshake.constant
     // CHECK-NOT: handshake.sink
-    %0 = "handshake.constant"(%arg0) { value = 24 : i8 } : (none) -> i8
-    "handshake.sink"(%0) : (i8) -> ()
+    %0 = constant %arg0 { value = 24 : i8 } : i8
+    sink %0 : i8
     return %arg0: none
   }
 }

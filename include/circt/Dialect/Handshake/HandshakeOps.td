@@ -24,7 +24,7 @@ def FuncOp : Op<Handshake_Dialect, "func", [
 ]> {
   let summary = "Handshake dialect function.";
   let description = [{
-    The "handshake.func" operation represents a handshaked function.
+    The func operation represents a handshaked function.
     This is almost exactly like a standard FuncOp, except that it has
     some extra verification conditions. In particular, each Value must
     only have a single use.
@@ -134,7 +134,7 @@ def InstanceOp : Handshake_Op<"instance", [CallOpInterface]> {
 
   let arguments = (ins FlatSymbolRefAttr:$module, Variadic<AnyType>:$operands);
   let results = (outs Variadic<AnyType>);
-
+  let skipDefaultBuilders = 1;
   let builders = [OpBuilder<
     (ins "FuncOp":$module, CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
@@ -192,7 +192,7 @@ def InstanceOp : Handshake_Op<"instance", [CallOpInterface]> {
 def ReturnOp : Handshake_Op<"return", [Terminator]> {
   let summary = "Handshake dialect return.";
   let description = [{
-    The "handshake.return" operation represents a handshaked
+    The return operation represents a handshaked
     function.  This is almost exactly like a standard ReturnOp, except
     that it exists in a handshake.func.  It has the same operands as
     standard ReturnOp which it replaces and an additional control -
@@ -202,7 +202,6 @@ def ReturnOp : Handshake_Op<"return", [Terminator]> {
   let arguments = (ins Variadic<AnyType> : $operands, NoneType : $control);
 
   let skipDefaultBuilders = 1;
-
   let builders = [OpBuilder<(ins "ArrayRef<Value>":$operands)>];
 
   let verifier = "return ::verify(*this);";
@@ -214,28 +213,32 @@ def BufferOp : Handshake_Op<"buffer", [NoSideEffect, HasClock,
   let summary = "buffer operation";
 
   let description = [{
-    The "handshake.buffer" operation represents a buffer operation. $slots
+    The buffer operation represents a buffer operation. $slots
     must be an unsigned integer larger than 0. $sequantial=True indicates a
     nontransparent buffer, while $sequantial=False indicates a transparent
     buffer.
   }];
 
-  let arguments = (ins AnyType:$operand, BoolAttr:$sequential, BoolAttr:$control,
-                   Confined<I32Attr, [IntMinValue<1>]>:$slots);
+  let arguments = (ins
+    TypeAttr:$dataType,
+    Confined<I32Attr, [IntMinValue<1>]>:$size,
+    AnyType:$operand,
+    BoolAttr:$sequential);
   let results = (outs AnyType:$result);
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins "Type":$dataType, "int":$size,
+    "Value":$operand, "bool":$sequential)>];
 
   let extraClassDeclaration = [{
     bool isSequential() {
       return (*this)->getAttrOfType<BoolAttr>("sequential").getValue();
     }
-    bool isControl() {
-      return (*this)->getAttrOfType<BoolAttr>("control").getValue();
-    }
-    APInt getNumSlots() {
-      return (*this)->getAttrOfType<IntegerAttr>("slots").getValue();
+    int getNumSlots() {
+      return (*this)->getAttrOfType<IntegerAttr>("size").getValue().getZExtValue();
     }
   }];
-  let assemblyFormat = [{ operands attr-dict `:` type($operand)}];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 }
 
 def ForkOp : Handshake_Op<"fork", [
@@ -245,12 +248,15 @@ def ForkOp : Handshake_Op<"fork", [
   let summary = "fork operation";
 
   let description = [{
-    The "handshake.fork" operation represents a fork operation.  A
+    The fork operation represents a fork operation.  A
     single input is replicated to N outputs and distributed to each
     output as soon as the corresponding successor is available.
   }];
 
-  let arguments = (ins AnyType : $operand, BoolAttr : $control);
+  let arguments = (ins
+    TypeAttr:$dataType,
+    Confined<I32Attr, [IntMinValue<1>]>:$size,
+    AnyType : $operand);
   let results = (outs Variadic<AnyType> : $result);
 
   let hasCanonicalizer = 1;
@@ -258,34 +264,25 @@ def ForkOp : Handshake_Op<"fork", [
   let builders = [OpBuilder<(ins "Value":$operand, "int":$outputs)>];
   let printer = "return ::print$cppClass(p, *this);";
   let parser = "return ::parse$cppClass(parser, result);";
-
-  let extraClassDeclaration = [{
-    bool isControl() { return (*this)->getAttrOfType<BoolAttr>("control").getValue(); }
-  }];
 }
 
-def LazyForkOp : Handshake_Op<"lazy_fork", [NoSideEffect,
-  TypesMatchWith<"data operand type matches result type",
-                  "operand", "result", "$_self">
-  ]> {
+def LazyForkOp : Handshake_Op<"lazy_fork", [NoSideEffect]> {
   let summary = "lazy fork operation";
   let description = [{
-    The "handshake.lfork" operation represents a lazy fork operation.
+    The lazy_fork operation represents a lazy fork operation.
     A single input is replicated to N outputs and distributed to each
     output when all successors are available.
   }];
 
-  let arguments = (ins AnyType : $operand, BoolAttr : $control);
+  let arguments = (ins
+    TypeAttr:$dataType,
+    Confined<I32Attr, [IntMinValue<1>]>:$size,
+    AnyType : $operand);
   let results = (outs Variadic<AnyType> : $result);
   let printer = "return ::print$cppClass(p, *this);";
   let parser = "return ::parse$cppClass(parser, result);";
-
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand, "int":$outputs)>];
-
-  let extraClassDeclaration = [{
-    bool isControl() {  return (*this)->getAttrOfType<BoolAttr>("control").getValue(); }
-  }];
 }
 
 def MergeOp : Handshake_Op<"merge", [
@@ -294,19 +291,28 @@ def MergeOp : Handshake_Op<"merge", [
 ]> {
   let summary = "merge operation";
   let description = [{
-    The "handshake.merge" operation represents a (nondeterministic)
+    The merge operation represents a (nondeterministic)
     merge operation. Any input is propagated to the single output. The
     number of inputs corresponds to the number of predecessor
     blocks.
+
+    Example:
+    ```
+    %0 = merge %a, %b, %c : i32
+    ```
   }];
 
-  let arguments = (ins Variadic<AnyType>:$dataOperands);
+  let arguments = (ins
+    TypeAttr:$dataType,
+    Confined<I32Attr, [IntMinValue<1>]>:$size,
+    Variadic<AnyType>:$dataOperands);
   let results = (outs AnyType:$result);
   let printer = "return ::print$cppClass(p, *this);";
   let parser = "return ::parse$cppClass(parser, result);";
 
   let hasCanonicalizer = 1;
-  let builders = [OpBuilder<(ins "Value":$operand, "int":$inputs)>];
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins "ValueRange":$operands)>];
 }
 
 def MuxOp : Handshake_Op<"mux", [
@@ -316,7 +322,7 @@ def MuxOp : Handshake_Op<"mux", [
 ]> {
   let summary = "mux operation";
   let description = [{
-    The "handshake.mux" operation represents a(deterministic)
+    The mux operation represents a(deterministic)
         merge operation.
     Operands: select, data0, data1, data2, ...
 
@@ -324,11 +330,19 @@ def MuxOp : Handshake_Op<"mux", [
     block and it represents the index of the data operand that the mux
     should propagate to its single output.  The number of data inputs
     corresponds to the number of predecessor blocks.
-  }];
-  let arguments = (ins Index : $selectOperand,
-							  Variadic<AnyType> : $dataOperands);
-  let results = (outs AnyType : $result);
 
+    Example:
+    ```mlir
+    %0 = handshake.mux %select [%data0, %data1, %data2] {attributes}: index, i32
+    ```
+  }];
+  let arguments = (ins
+    TypeAttr:$dataType,
+    Confined<I32Attr, [IntMinValue<1>]>:$size,
+    AnyType : $selectOperand,
+		Variadic<AnyType> : $dataOperands);
+  let results = (outs AnyType : $result);
+  let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand, "int":$inputs)>];
   let printer = "return ::print$cppClass(p, *this);";
   let parser = "return ::parse$cppClass(parser, result);";
@@ -342,58 +356,58 @@ def ControlMergeOp : Handshake_Op<"control_merge", [
 ]> {
   let summary = "control merge operation";
   let description = [{
-    The "handshake.control_merge" operation represents a
+    The control_merge operation represents a
     (nondeterministic) control merge.  Any input is propagated to the
     first output and the index of the propagated input is sent to the
     second output.  The number of inputs corresponds to the number of
     predecessor blocks.  ControlMerge is a control-only
     component(i.e., has no data but only bidirectional handshake).
+
+    Example:
+    ```
+    %0, %idx = control_merge %a, %b, %c : i32
+    ```
   }];
 
-  let arguments = (ins Variadic<AnyType> : $dataOperands, BoolAttr : $control);
+  let arguments = (ins
+    TypeAttr:$dataType,
+    Confined<I32Attr, [IntMinValue<1>]>:$size,
+    Variadic<AnyType> : $dataOperands);
   let results = (outs AnyType : $result, Index : $index);
 
   let hasCanonicalizer = 1;
+  let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand, "int":$inputs)>];
   let printer = "return ::print$cppClass(p, *this);";
   let parser = "return ::parse$cppClass(parser, result);";
-
-  let extraClassDeclaration = [{
-    bool isControl() {
-      return (*this)->getAttrOfType<BoolAttr>("control").getValue();
-    }
-  }];
 }
 
-def BranchOp : Handshake_Op<"branch", [
+def BranchOp : Handshake_Op<"br", [
   NoSideEffect, DeclareOpInterfaceMethods<ExecutableOpInterface>,
   DeclareOpInterfaceMethods<GeneralOpInterface>,
   AllTypesMatch<["dataOperand", "dataResult"]>
   ]> {
   let summary = "branch operation";
   let description = [{
-      The "handshake.branch" operation represents an unconditional
+      The branch operation represents an unconditional
       branch.  The single data input is propagated to the single
       successor.  The input must be triggered by some predecessor to
       avoid continous triggering of a successor block.
   }];
-  let arguments = (ins AnyType : $dataOperand,
-		                 BoolAttr : $control);
+  let arguments = (ins
+    TypeAttr:$dataType,
+    AnyType : $dataOperand);
   let results = (outs AnyType : $dataResult);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$dataOperand)>];
 
   let hasCanonicalizer = 1;
-  let extraClassDeclaration = [{
-    bool isControl() {
-      return (*this)->getAttrOfType<BoolAttr>("control").getValue();
-    }
-  }];
-  let assemblyFormat = [{ operands attr-dict `:` type($dataOperand)}];
+  let parser = "return ::parse$cppClass(parser, result);";
+  let printer = "return ::print$cppClass(p, *this);";
 }
 
-def ConditionalBranchOp : Handshake_Op<"conditional_branch", [
+def ConditionalBranchOp : Handshake_Op<"cond_br", [
   NoSideEffect, DeclareOpInterfaceMethods<ExecutableOpInterface>,
   DeclareOpInterfaceMethods<NamedIOInterface, ["getOperandName"]>,
   DeclareOpInterfaceMethods<NamedIOInterface, ["getResultName"]>,
@@ -404,52 +418,50 @@ def ConditionalBranchOp : Handshake_Op<"conditional_branch", [
 ]> {
   let summary = "conditional branch operation";
   let description = [{
-     The "handshake.cbranch" operation represents a conditional
+     The cbranch operation represents a conditional
      branch.  The data input is propagated to one of the two outputs
      based on the condition input.
+
+     Example:
+     ```mlir
+     %true, %false = conditional_branch %cond, %data : i32
+     ```
   }];
 
   let arguments = (ins I1 : $conditionOperand,
-                       AnyType : $dataOperand,
-                       BoolAttr : $control);
+                       AnyType : $dataOperand);
   let results = (outs AnyType : $trueResult,
                       AnyType : $falseResult);
 
   let builders = [OpBuilder<(ins "Value":$condOperand, "Value":$dataOperand)>];
-
+  let skipDefaultBuilders = 1;
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
   let extraClassDeclaration = [{
     // These are the indices into the dests list.
     enum { trueIndex = 0, falseIndex = 1 };
-
-    Value getFalseResult() { return getResult(falseIndex); }
-
-    Value getTrueResult() { return getResult(trueIndex); }
-
-    Value getDataOperand() { return getOperand(1); }
-
-    bool isControl() { return (*this)->getAttrOfType<BoolAttr>("control").getValue(); }
   }];
-  let assemblyFormat = [{ operands attr-dict `:` type($dataOperand)}];
 }
 
 def SinkOp
     : Handshake_Op<"sink", [DeclareOpInterfaceMethods<ExecutableOpInterface>]> {
   let summary = "sink operation";
   let description = [{
-    The "handshake.sink" operation discards any data that arrives at its
+    The sink operation discards any data that arrives at its
          input.The sink has no successors and it can continuously consume data.
   }];
   let arguments = (ins AnyType:$operand);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$operand)>];
-  let assemblyFormat = [{ operands attr-dict `:` type($operand)}];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 }
 
 def SourceOp : Handshake_Op<"source", [NoSideEffect]> {
   let summary = "source operation";
   let description = [{
-    The "handshake.source" operation represents continuous data
+    The source operation represents continuous data
     source.  The source continously sets a 'valid' signal which the
     successor can consume at any point in time.
   }];
@@ -461,7 +473,7 @@ def SourceOp : Handshake_Op<"source", [NoSideEffect]> {
 def NeverOp : Handshake_Op<"never", [NoSideEffect]> {
   let summary = "never operation";
   let description = [{
-    The "handshake.never" operation represents disconnected data
+    The never operation represents disconnected data
     source. The source never sets any 'valid' signal which will
     never trigger the successor at any point in time.
   }];
@@ -477,29 +489,29 @@ def ConstantOp : Handshake_Op<"constant", [
 ]> {
   let summary = "constant operation";
   let description = [{
-    The "handshake.const" has a constant value. When triggered by its
+    The const has a constant value. When triggered by its
     single `ctrl` input, it sends the constant value to its single
     successor.
   }];
 
-  let arguments = (ins AnyAttr:$value, AnyType:$ctrl);
+  let arguments = (ins AnyAttr:$value, NoneType:$ctrl);
   let results = (outs AnyType : $result);
 
-  // let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Attribute":$value, "Value":$ctrl)>];
+  let skipDefaultBuilders = 1;
 
   let hasCanonicalizer = 1;
   let extraClassDeclaration = [{
     Attribute getValue() { return (*this)->getAttr("value"); }
   }];
-  let assemblyFormat = [{ operands attr-dict `:` type($ctrl) `,` type($result)}];
+  let assemblyFormat = [{ $ctrl attr-dict `:` type($result)}];
 }
 
 def EndOp
     : Handshake_Op<"end", [DeclareOpInterfaceMethods<ExecutableOpInterface>]> {
   let summary = "end operation";
   let description = [{
-    The "handshake.end" propagates the result of the appropriate
+    The end propagates the result of the appropriate
     return operation from one of its inputs to its single output after
     all memory accesses have completed.  Currently not used(data
     returned through ReturnOp).
@@ -561,10 +573,10 @@ def MemoryOp : Handshake_Op<"memory", [
     ordered as operands (stnone1, stnone2,...ldnone1, ldnone2,...)
   }];
   let arguments = (ins Variadic<AnyType> : $inputs,
-                   I32Attr : $ld_count,
-                   I32Attr : $st_count,
+                   I32Attr : $ldCount,
+                   I32Attr : $stCount,
                    I32Attr : $id,
-                   MemRefTypeAttr : $type);
+                   MemRefTypeAttr : $memRefType);
   let results = (outs Variadic<AnyType> : $outputs);
 
   let skipDefaultBuilders = 1;
@@ -572,22 +584,7 @@ def MemoryOp : Handshake_Op<"memory", [
       ins "ArrayRef<Value>":$operands, "int":$outputs, "int":$control_outputs, "bool":$lsq,
       "int":$id, "Value":$memref)>
   ];
-  let extraClassDeclaration = [{
-    APInt getLdCount() {
-      return (*this)->getAttrOfType<IntegerAttr>("ld_count").getValue();
-    }
-    APInt getStCount() {
-      return (*this)->getAttrOfType<IntegerAttr>("st_count").getValue();
-    }
-    unsigned getID() {
-      return (*this)->getAttrOfType<IntegerAttr>("id").getValue().getZExtValue();
-    }
-    MemRefType getMemRefType() {
-      return (*this)->getAttrOfType<TypeAttr>("type").getValue().cast<MemRefType>();
-    }
-  }];
-  let printer = "return ::print$cppClass(p, *this);";
-  let parser = "return ::parse$cppClass(parser, result);";
+  let assemblyFormat = "`[` `ld` `=` $ldCount `,` `st` `=`  $stCount `]` `(` $inputs `)` attr-dict `:` $memRefType `,` functional-type($inputs, $outputs)";
   let verifier = "return ::verify$cppClass(*this);";
 }
 
@@ -609,8 +606,8 @@ def ExternalMemoryOp : Handshake_Op<"extmemory", [
 
     ```mlir
     handshake.func @main(%i: index, %v: i32, %mem : memref<10xi32>, %ctrl: none) -> none {
-      %stCtrl = "handshake.extmemory"[ld = 0, st = 1](%mem : memref<10xi32>)(%vout, %addr) {id = 0 : i32} : (i32, index) -> (none)
-      %vout, %addr = "handshake.store"(%v, %i, %ctrl) : (i32, index, none) -> (i32, index)
+      %stCtrl = extmemory[ld = 0, st = 1](%mem : memref<10xi32>)(%vout, %addr) {id = 0 : i32} : (i32, index) -> (none)
+      %vout, %addr = store(%v, %i, %ctrl) : (i32, index, none) -> (i32, index)
       ...
     }
     ```
@@ -628,16 +625,13 @@ def ExternalMemoryOp : Handshake_Op<"extmemory", [
       "int":$id)>
   ];
   let assemblyFormat = "`[` `ld` `=` $ldCount `,` `st` `=`  $stCount `]` `(` $memref `:` type($memref) `)` `(` $inputs `)` attr-dict `:` functional-type($inputs, $outputs)";
-
-  let extraClassDeclaration = [{
-    MemRefType getMemRefType() {
-      return (*this)->getOperand(0).getType().cast<MemRefType>();
-    }
-  }];
 }
 
-def LoadOp
-    : Handshake_Op<"load", [DeclareOpInterfaceMethods<ExecutableOpInterface>]> {
+def LoadOp : Handshake_Op<"load", [
+  DeclareOpInterfaceMethods<ExecutableOpInterface>,
+  DeclareOpInterfaceMethods<NamedIOInterface, ["getOperandName"]>,
+  DeclareOpInterfaceMethods<NamedIOInterface, ["getResultName"]>
+]> {
   let summary = "load operation";
   let description = [{
      Load memory port, sends load requests to MemoryOp. From dataflow
@@ -649,11 +643,16 @@ def LoadOp
 
      Operands: address indices (from predecessor), data (from MemoryOp), control-only input.
      Results: data (to successor), address indices (to MemoryOp).
+
+    Example:
+    ```mlir
+    %dataToSucc, %addr1ToMem, %addr2ToMem = load [%addr1, %addr2] %dataFromMem, %ctrl : i8, i16, index
+    ```
   }];
 
-  let arguments = (ins Variadic<AnyType>: $address, AnyType:$data, NoneType:$sync);
+  let arguments = (ins Variadic<AnyType>:$addresses, AnyType:$data, NoneType:$ctrl);
   let results = (outs AnyType:$dataResult, Variadic<AnyType>:$addressResults);
-
+  let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "Value":$memref, "ArrayRef<Value>":$indices)>];
   let printer = "return ::print$cppClass(p, *this);";
   let parser = "return ::parse$cppClass(parser, result);";
@@ -661,7 +660,9 @@ def LoadOp
 
 def StoreOp : Handshake_Op<"store", [
   DeclareOpInterfaceMethods<ExecutableOpInterface>,
-  DeclareOpInterfaceMethods<GeneralOpInterface>
+  DeclareOpInterfaceMethods<GeneralOpInterface>,
+  DeclareOpInterfaceMethods<NamedIOInterface, ["getOperandName"]>,
+  DeclareOpInterfaceMethods<NamedIOInterface, ["getResultName"]>
 ]> {
   let summary = "store operation";
   let description = [{
@@ -673,9 +674,15 @@ def StoreOp : Handshake_Op<"store", [
 
     Operands: address indices, data, control-only input.
     Results: data and address indices (sent to MemoryOp).
+    Types: data type followed by address type.
+
+    Example:
+    ```mlir
+    %dataToMem, %addrToMem = store [%addr1, %addr2] %dataFromPred , %ctrl : i8, i16, index
+    ```
   }];
 
-  let arguments = (ins AnyType:$data, Variadic<AnyType>:$address, NoneType:$sync);
+  let arguments = (ins Variadic<AnyType>:$addresses, AnyType:$data, NoneType:$ctrl);
   let results = (outs AnyType:$dataResult, Variadic<AnyType>:$addressResult);
 
   let builders =
@@ -693,12 +700,13 @@ def JoinOp : Handshake_Op<"join", [
     A control-only synchronizer.  Produces a valid output when all
     inputs become available.
   }];
-  let arguments = (ins Variadic<NoneType> : $data, BoolAttr : $control);
+  let arguments = (ins Variadic<NoneType> : $data);
   let results = (outs NoneType : $result);
 
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "ArrayRef<Value>":$operands)>];
-  let assemblyFormat = [{ operands attr-dict `:` type($data) }];
+  let printer = "return ::print$cppClass(p, *this);";
+  let parser = "return ::parse$cppClass(parser, result);";
 }
 
 def I4 : I<4>;

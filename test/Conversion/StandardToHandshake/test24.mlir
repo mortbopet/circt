@@ -5,50 +5,50 @@
 
 // CHECK-LABEL:   handshake.func @nested_ifs(
 // CHECK-SAME:                               %[[VAL_0:.*]]: none, ...) -> none attributes {argNames = ["inCtrl"], resNames = ["outCtrl"]} {
-// CHECK:           %[[VAL_1:.*]]:4 = "handshake.fork"(%[[VAL_0]]) {control = true} : (none) -> (none, none, none, none)
-// CHECK:           %[[VAL_2:.*]] = "handshake.constant"(%[[VAL_1]]#2) {value = 0 : index} : (none) -> index
-// CHECK:           %[[VAL_3:.*]]:2 = "handshake.fork"(%[[VAL_2]]) {control = false} : (index) -> (index, index)
-// CHECK:           %[[VAL_4:.*]] = "handshake.constant"(%[[VAL_1]]#1) {value = -1 : index} : (none) -> index
+// CHECK:           %[[VAL_1:.*]]:4 = fork(%[[VAL_0]]) {control = true} : (none) -> (none, none, none, none)
+// CHECK:           %[[VAL_2:.*]] = constant(%[[VAL_1]]#2) {value = 0 : index} : (none) -> index
+// CHECK:           %[[VAL_3:.*]]:2 = fork(%[[VAL_2]]) : (index) -> (index, index)
+// CHECK:           %[[VAL_4:.*]] = constant(%[[VAL_1]]#1) {value = -1 : index} : (none) -> index
 // CHECK:           %[[VAL_5:.*]] = arith.muli %[[VAL_3]]#0, %[[VAL_4]] : index
-// CHECK:           %[[VAL_6:.*]]:2 = "handshake.fork"(%[[VAL_5]]) {control = false} : (index) -> (index, index)
-// CHECK:           %[[VAL_7:.*]] = "handshake.constant"(%[[VAL_1]]#0) {value = 20 : index} : (none) -> index
+// CHECK:           %[[VAL_6:.*]]:2 = fork(%[[VAL_5]]) : (index) -> (index, index)
+// CHECK:           %[[VAL_7:.*]] = constant(%[[VAL_1]]#0) {value = 20 : index} : (none) -> index
 // CHECK:           %[[VAL_8:.*]] = arith.addi %[[VAL_6]]#1, %[[VAL_7]] : index
 // CHECK:           %[[VAL_9:.*]] = arith.cmpi sge, %[[VAL_8]], %[[VAL_3]]#1 : index
-// CHECK:           %[[VAL_10:.*]]:2 = "handshake.fork"(%[[VAL_9]]) {control = false} : (i1) -> (i1, i1)
-// CHECK:           %[[VAL_11:.*]], %[[VAL_12:.*]] = "handshake.conditional_branch"(%[[VAL_10]]#1, %[[VAL_1]]#3) {control = true} : (i1, none) -> (none, none)
-// CHECK:           %[[VAL_13:.*]], %[[VAL_14:.*]] = "handshake.conditional_branch"(%[[VAL_10]]#0, %[[VAL_6]]#0) {control = false} : (i1, index) -> (index, index)
-// CHECK:           %[[VAL_15:.*]] = "handshake.merge"(%[[VAL_13]]) : (index) -> index
-// CHECK:           %[[VAL_16:.*]]:2 = "handshake.control_merge"(%[[VAL_11]]) {control = true} : (none) -> (none, index)
-// CHECK:           %[[VAL_17:.*]]:3 = "handshake.fork"(%[[VAL_16]]#0) {control = true} : (none) -> (none, none, none)
-// CHECK:           "handshake.sink"(%[[VAL_16]]#1) : (index) -> ()
-// CHECK:           %[[VAL_18:.*]] = "handshake.constant"(%[[VAL_17]]#1) {value = 0 : index} : (none) -> index
-// CHECK:           %[[VAL_19:.*]] = "handshake.constant"(%[[VAL_17]]#0) {value = -10 : index} : (none) -> index
+// CHECK:           %[[VAL_10:.*]]:2 = fork(%[[VAL_9]]) : (i1) -> (i1, i1)
+// CHECK:           %[[VAL_11:.*]], %[[VAL_12:.*]] = conditional_branch(%[[VAL_10]]#1, %[[VAL_1]]#3) {control = true} : (i1, none) -> (none, none)
+// CHECK:           %[[VAL_13:.*]], %[[VAL_14:.*]] = conditional_branch(%[[VAL_10]]#0, %[[VAL_6]]#0) : (i1, index) -> (index, index)
+// CHECK:           %[[VAL_15:.*]] = merge(%[[VAL_13]]) : (index) -> index
+// CHECK:           %[[VAL_16:.*]]:2 = control_merge(%[[VAL_11]]) {control = true} : (none) -> (none, index)
+// CHECK:           %[[VAL_17:.*]]:3 = fork(%[[VAL_16]]#0) {control = true} : (none) -> (none, none, none)
+// CHECK:           sink(%[[VAL_16]]#1) : (index) -> ()
+// CHECK:           %[[VAL_18:.*]] = constant(%[[VAL_17]]#1) {value = 0 : index} : (none) -> index
+// CHECK:           %[[VAL_19:.*]] = constant(%[[VAL_17]]#0) {value = -10 : index} : (none) -> index
 // CHECK:           %[[VAL_20:.*]] = arith.addi %[[VAL_15]], %[[VAL_19]] : index
 // CHECK:           %[[VAL_21:.*]] = arith.cmpi sge, %[[VAL_20]], %[[VAL_18]] : index
-// CHECK:           %[[VAL_22:.*]], %[[VAL_23:.*]] = "handshake.conditional_branch"(%[[VAL_21]], %[[VAL_17]]#2) {control = true} : (i1, none) -> (none, none)
-// CHECK:           %[[VAL_24:.*]]:2 = "handshake.control_merge"(%[[VAL_22]]) {control = true} : (none) -> (none, index)
-// CHECK:           "handshake.sink"(%[[VAL_24]]#1) : (index) -> ()
-// CHECK:           %[[VAL_25:.*]] = "handshake.branch"(%[[VAL_24]]#0) {control = true} : (none) -> none
-// CHECK:           %[[VAL_26:.*]]:2 = "handshake.control_merge"(%[[VAL_25]], %[[VAL_23]]) {control = true} : (none, none) -> (none, index)
-// CHECK:           "handshake.sink"(%[[VAL_26]]#1) : (index) -> ()
-// CHECK:           %[[VAL_27:.*]] = "handshake.branch"(%[[VAL_26]]#0) {control = true} : (none) -> none
-// CHECK:           %[[VAL_28:.*]] = "handshake.merge"(%[[VAL_14]]) : (index) -> index
-// CHECK:           %[[VAL_29:.*]]:2 = "handshake.control_merge"(%[[VAL_12]]) {control = true} : (none) -> (none, index)
-// CHECK:           %[[VAL_30:.*]]:3 = "handshake.fork"(%[[VAL_29]]#0) {control = true} : (none) -> (none, none, none)
-// CHECK:           "handshake.sink"(%[[VAL_29]]#1) : (index) -> ()
-// CHECK:           %[[VAL_31:.*]] = "handshake.constant"(%[[VAL_30]]#1) {value = 0 : index} : (none) -> index
-// CHECK:           %[[VAL_32:.*]] = "handshake.constant"(%[[VAL_30]]#0) {value = -10 : index} : (none) -> index
+// CHECK:           %[[VAL_22:.*]], %[[VAL_23:.*]] = conditional_branch(%[[VAL_21]], %[[VAL_17]]#2) {control = true} : (i1, none) -> (none, none)
+// CHECK:           %[[VAL_24:.*]]:2 = control_merge(%[[VAL_22]]) {control = true} : (none) -> (none, index)
+// CHECK:           sink(%[[VAL_24]]#1) : (index) -> ()
+// CHECK:           %[[VAL_25:.*]] = branch(%[[VAL_24]]#0) {control = true} : (none) -> none
+// CHECK:           %[[VAL_26:.*]]:2 = control_merge(%[[VAL_25]], %[[VAL_23]]) {control = true} : (none, none) -> (none, index)
+// CHECK:           sink(%[[VAL_26]]#1) : (index) -> ()
+// CHECK:           %[[VAL_27:.*]] = branch(%[[VAL_26]]#0) {control = true} : (none) -> none
+// CHECK:           %[[VAL_28:.*]] = merge(%[[VAL_14]]) : (index) -> index
+// CHECK:           %[[VAL_29:.*]]:2 = control_merge(%[[VAL_12]]) {control = true} : (none) -> (none, index)
+// CHECK:           %[[VAL_30:.*]]:3 = fork(%[[VAL_29]]#0) {control = true} : (none) -> (none, none, none)
+// CHECK:           sink(%[[VAL_29]]#1) : (index) -> ()
+// CHECK:           %[[VAL_31:.*]] = constant(%[[VAL_30]]#1) {value = 0 : index} : (none) -> index
+// CHECK:           %[[VAL_32:.*]] = constant(%[[VAL_30]]#0) {value = -10 : index} : (none) -> index
 // CHECK:           %[[VAL_33:.*]] = arith.addi %[[VAL_28]], %[[VAL_32]] : index
 // CHECK:           %[[VAL_34:.*]] = arith.cmpi sge, %[[VAL_33]], %[[VAL_31]] : index
-// CHECK:           %[[VAL_35:.*]], %[[VAL_36:.*]] = "handshake.conditional_branch"(%[[VAL_34]], %[[VAL_30]]#2) {control = true} : (i1, none) -> (none, none)
-// CHECK:           %[[VAL_37:.*]]:2 = "handshake.control_merge"(%[[VAL_35]]) {control = true} : (none) -> (none, index)
-// CHECK:           "handshake.sink"(%[[VAL_37]]#1) : (index) -> ()
-// CHECK:           %[[VAL_38:.*]] = "handshake.branch"(%[[VAL_37]]#0) {control = true} : (none) -> none
-// CHECK:           %[[VAL_39:.*]]:2 = "handshake.control_merge"(%[[VAL_38]], %[[VAL_36]]) {control = true} : (none, none) -> (none, index)
-// CHECK:           "handshake.sink"(%[[VAL_39]]#1) : (index) -> ()
-// CHECK:           %[[VAL_40:.*]] = "handshake.branch"(%[[VAL_39]]#0) {control = true} : (none) -> none
-// CHECK:           %[[VAL_41:.*]]:2 = "handshake.control_merge"(%[[VAL_40]], %[[VAL_27]]) {control = true} : (none, none) -> (none, index)
-// CHECK:           "handshake.sink"(%[[VAL_41]]#1) : (index) -> ()
+// CHECK:           %[[VAL_35:.*]], %[[VAL_36:.*]] = conditional_branch(%[[VAL_34]], %[[VAL_30]]#2) {control = true} : (i1, none) -> (none, none)
+// CHECK:           %[[VAL_37:.*]]:2 = control_merge(%[[VAL_35]]) {control = true} : (none) -> (none, index)
+// CHECK:           sink(%[[VAL_37]]#1) : (index) -> ()
+// CHECK:           %[[VAL_38:.*]] = branch(%[[VAL_37]]#0) {control = true} : (none) -> none
+// CHECK:           %[[VAL_39:.*]]:2 = control_merge(%[[VAL_38]], %[[VAL_36]]) {control = true} : (none, none) -> (none, index)
+// CHECK:           sink(%[[VAL_39]]#1) : (index) -> ()
+// CHECK:           %[[VAL_40:.*]] = branch(%[[VAL_39]]#0) {control = true} : (none) -> none
+// CHECK:           %[[VAL_41:.*]]:2 = control_merge(%[[VAL_40]], %[[VAL_27]]) {control = true} : (none, none) -> (none, index)
+// CHECK:           sink(%[[VAL_41]]#1) : (index) -> ()
 // CHECK:           return %[[VAL_41]]#0 : none
 // CHECK:         }
 // CHECK:       }

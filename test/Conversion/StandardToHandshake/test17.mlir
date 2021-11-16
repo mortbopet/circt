@@ -5,19 +5,19 @@ func @affine_apply_floordiv(%arg0: index) -> index {
 
 // CHECK-LABEL:   handshake.func @affine_apply_floordiv(
 // CHECK-SAME:                                          %[[VAL_0:.*]]: index, %[[VAL_1:.*]]: none, ...) -> (index, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
-// CHECK:           %[[VAL_2:.*]] = "handshake.merge"(%[[VAL_0]]) : (index) -> index
-// CHECK:           %[[VAL_3:.*]]:3 = "handshake.fork"(%[[VAL_2]]) {control = false} : (index) -> (index, index, index)
-// CHECK:           %[[VAL_4:.*]]:4 = "handshake.fork"(%[[VAL_1]]) {control = true} : (none) -> (none, none, none, none)
-// CHECK:           %[[VAL_5:.*]] = "handshake.constant"(%[[VAL_4]]#2) {value = 42 : index} : (none) -> index
-// CHECK:           %[[VAL_6:.*]] = "handshake.constant"(%[[VAL_4]]#1) {value = 0 : index} : (none) -> index
-// CHECK:           %[[VAL_7:.*]] = "handshake.constant"(%[[VAL_4]]#0) {value = -1 : index} : (none) -> index
-// CHECK:           %[[VAL_8:.*]]:2 = "handshake.fork"(%[[VAL_7]]) {control = false} : (index) -> (index, index)
+// CHECK:           %[[VAL_2:.*]] = merge(%[[VAL_0]]) : (index) -> index
+// CHECK:           %[[VAL_3:.*]]:3 = fork(%[[VAL_2]]) : (index) -> (index, index, index)
+// CHECK:           %[[VAL_4:.*]]:4 = fork(%[[VAL_1]]) {control = true} : (none) -> (none, none, none, none)
+// CHECK:           %[[VAL_5:.*]] = constant(%[[VAL_4]]#2) {value = 42 : index} : (none) -> index
+// CHECK:           %[[VAL_6:.*]] = constant(%[[VAL_4]]#1) {value = 0 : index} : (none) -> index
+// CHECK:           %[[VAL_7:.*]] = constant(%[[VAL_4]]#0) {value = -1 : index} : (none) -> index
+// CHECK:           %[[VAL_8:.*]]:2 = fork(%[[VAL_7]]) : (index) -> (index, index)
 // CHECK:           %[[VAL_9:.*]] = arith.cmpi slt, %[[VAL_3]]#2, %[[VAL_6]] : index
-// CHECK:           %[[VAL_10:.*]]:2 = "handshake.fork"(%[[VAL_9]]) {control = false} : (i1) -> (i1, i1)
+// CHECK:           %[[VAL_10:.*]]:2 = fork(%[[VAL_9]]) : (i1) -> (i1, i1)
 // CHECK:           %[[VAL_11:.*]] = arith.subi %[[VAL_8]]#0, %[[VAL_3]]#1 : index
 // CHECK:           %[[VAL_12:.*]] = select %[[VAL_10]]#1, %[[VAL_11]], %[[VAL_3]]#0 : index
 // CHECK:           %[[VAL_13:.*]] = arith.divsi %[[VAL_12]], %[[VAL_5]] : index
-// CHECK:           %[[VAL_14:.*]]:2 = "handshake.fork"(%[[VAL_13]]) {control = false} : (index) -> (index, index)
+// CHECK:           %[[VAL_14:.*]]:2 = fork(%[[VAL_13]]) : (index) -> (index, index)
 // CHECK:           %[[VAL_15:.*]] = arith.subi %[[VAL_8]]#1, %[[VAL_14]]#1 : index
 // CHECK:           %[[VAL_16:.*]] = select %[[VAL_10]]#0, %[[VAL_15]], %[[VAL_14]]#0 : index
 // CHECK:           return %[[VAL_16]], %[[VAL_4]]#3 : index, none

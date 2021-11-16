@@ -5,13 +5,13 @@ func @affine_apply_mod(%arg0: index) -> index {
 
 // CHECK-LABEL:   handshake.func @affine_apply_mod(
 // CHECK-SAME:                                     %[[VAL_0:.*]]: index, %[[VAL_1:.*]]: none, ...) -> (index, none) attributes {argNames = ["in0", "inCtrl"], resNames = ["out0", "outCtrl"]} {
-// CHECK:           %[[VAL_2:.*]] = "handshake.merge"(%[[VAL_0]]) : (index) -> index
-// CHECK:           %[[VAL_3:.*]]:3 = "handshake.fork"(%[[VAL_1]]) {control = true} : (none) -> (none, none, none)
-// CHECK:           %[[VAL_4:.*]] = "handshake.constant"(%[[VAL_3]]#1) {value = 42 : index} : (none) -> index
-// CHECK:           %[[VAL_5:.*]]:2 = "handshake.fork"(%[[VAL_4]]) {control = false} : (index) -> (index, index)
+// CHECK:           %[[VAL_2:.*]] = merge(%[[VAL_0]]) : (index) -> index
+// CHECK:           %[[VAL_3:.*]]:3 = fork(%[[VAL_1]]) {control = true} : (none) -> (none, none, none)
+// CHECK:           %[[VAL_4:.*]] = constant(%[[VAL_3]]#1) {value = 42 : index} : (none) -> index
+// CHECK:           %[[VAL_5:.*]]:2 = fork(%[[VAL_4]]) : (index) -> (index, index)
 // CHECK:           %[[VAL_6:.*]] = arith.remsi %[[VAL_2]], %[[VAL_5]]#0 : index
-// CHECK:           %[[VAL_7:.*]]:3 = "handshake.fork"(%[[VAL_6]]) {control = false} : (index) -> (index, index, index)
-// CHECK:           %[[VAL_8:.*]] = "handshake.constant"(%[[VAL_3]]#0) {value = 0 : index} : (none) -> index
+// CHECK:           %[[VAL_7:.*]]:3 = fork(%[[VAL_6]]) : (index) -> (index, index, index)
+// CHECK:           %[[VAL_8:.*]] = constant(%[[VAL_3]]#0) {value = 0 : index} : (none) -> index
 // CHECK:           %[[VAL_9:.*]] = arith.cmpi slt, %[[VAL_7]]#2, %[[VAL_8]] : index
 // CHECK:           %[[VAL_10:.*]] = arith.addi %[[VAL_7]]#1, %[[VAL_5]]#1 : index
 // CHECK:           %[[VAL_11:.*]] = select %[[VAL_9]], %[[VAL_10]], %[[VAL_7]]#0 : index

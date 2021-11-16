@@ -5,23 +5,23 @@ func @dfs_block_order() -> (i32) {
 
 // CHECK-LABEL:   handshake.func @dfs_block_order(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: none, ...) -> (i32, none) attributes {argNames = ["inCtrl"], resNames = ["out0", "outCtrl"]} {
-// CHECK:           %[[VAL_1:.*]]:2 = "handshake.fork"(%[[VAL_0]]) {control = true} : (none) -> (none, none)
-// CHECK:           %[[VAL_2:.*]] = "handshake.constant"(%[[VAL_1]]#0) {value = 42 : i32} : (none) -> i32
-// CHECK:           %[[VAL_3:.*]] = "handshake.branch"(%[[VAL_1]]#1) {control = true} : (none) -> none
-// CHECK:           %[[VAL_4:.*]] = "handshake.branch"(%[[VAL_2]]) {control = false} : (i32) -> i32
-// CHECK:           %[[VAL_5:.*]] = "handshake.merge"(%[[VAL_6:.*]]) : (i32) -> i32
-// CHECK:           %[[VAL_7:.*]] = "handshake.merge"(%[[VAL_8:.*]]) : (i32) -> i32
-// CHECK:           %[[VAL_9:.*]]:2 = "handshake.control_merge"(%[[VAL_10:.*]]) {control = true} : (none) -> (none, index)
-// CHECK:           "handshake.sink"(%[[VAL_9]]#1) : (index) -> ()
+// CHECK:           %[[VAL_1:.*]]:2 = fork(%[[VAL_0]]) {control = true} : (none) -> (none, none)
+// CHECK:           %[[VAL_2:.*]] = constant(%[[VAL_1]]#0) {value = 42 : i32} : (none) -> i32
+// CHECK:           %[[VAL_3:.*]] = branch(%[[VAL_1]]#1) {control = true} : (none) -> none
+// CHECK:           %[[VAL_4:.*]] = branch(%[[VAL_2]]) : (i32) -> i32
+// CHECK:           %[[VAL_5:.*]] = merge(%[[VAL_6:.*]]) : (i32) -> i32
+// CHECK:           %[[VAL_7:.*]] = merge(%[[VAL_8:.*]]) : (i32) -> i32
+// CHECK:           %[[VAL_9:.*]]:2 = control_merge(%[[VAL_10:.*]]) {control = true} : (none) -> (none, index)
+// CHECK:           sink(%[[VAL_9]]#1) : (index) -> ()
 // CHECK:           %[[VAL_11:.*]] = arith.addi %[[VAL_5]], %[[VAL_7]] : i32
-// CHECK:           %[[VAL_12:.*]] = "handshake.merge"(%[[VAL_4]]) : (i32) -> i32
-// CHECK:           %[[VAL_13:.*]]:2 = "handshake.control_merge"(%[[VAL_3]]) {control = true} : (none) -> (none, index)
-// CHECK:           %[[VAL_14:.*]]:2 = "handshake.fork"(%[[VAL_13]]#0) {control = true} : (none) -> (none, none)
-// CHECK:           "handshake.sink"(%[[VAL_13]]#1) : (index) -> ()
-// CHECK:           %[[VAL_15:.*]] = "handshake.constant"(%[[VAL_14]]#0) {value = 55 : i32} : (none) -> i32
-// CHECK:           %[[VAL_6]] = "handshake.branch"(%[[VAL_12]]) {control = false} : (i32) -> i32
-// CHECK:           %[[VAL_10]] = "handshake.branch"(%[[VAL_14]]#1) {control = true} : (none) -> none
-// CHECK:           %[[VAL_8]] = "handshake.branch"(%[[VAL_15]]) {control = false} : (i32) -> i32
+// CHECK:           %[[VAL_12:.*]] = merge(%[[VAL_4]]) : (i32) -> i32
+// CHECK:           %[[VAL_13:.*]]:2 = control_merge(%[[VAL_3]]) {control = true} : (none) -> (none, index)
+// CHECK:           %[[VAL_14:.*]]:2 = fork(%[[VAL_13]]#0) {control = true} : (none) -> (none, none)
+// CHECK:           sink(%[[VAL_13]]#1) : (index) -> ()
+// CHECK:           %[[VAL_15:.*]] = constant(%[[VAL_14]]#0) {value = 55 : i32} : (none) -> i32
+// CHECK:           %[[VAL_6]] = branch(%[[VAL_12]]) : (i32) -> i32
+// CHECK:           %[[VAL_10]] = branch(%[[VAL_14]]#1) {control = true} : (none) -> none
+// CHECK:           %[[VAL_8]] = branch(%[[VAL_15]]) : (i32) -> i32
 // CHECK:           return %[[VAL_11]], %[[VAL_9]]#0 : i32, none
 // CHECK:         }
 // CHECK:       }
