@@ -19,10 +19,10 @@ namespace calyx {
 
 calyx::RegisterOp createRegister(Location loc, OpBuilder &builder,
                                  ComponentOp component, size_t width,
-                                 Twine prefix) {
+                                 StringRef name) {
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(component.getBody());
-  return builder.create<RegisterOp>(loc, (prefix + "_reg").str(), width);
+  return builder.create<RegisterOp>(loc, name, width);
 }
 
 hw::ConstantOp createConstant(Location loc, OpBuilder &builder,
